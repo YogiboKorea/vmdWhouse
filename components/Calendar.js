@@ -132,38 +132,52 @@ export default function Calendar({ popups, cursor, onShift, onToday, onBarClick 
               {weekEvents.filter((ev) => ev.lane >= 0).map((ev, ei) => {
                 const c = colorFor(ev.popup.name);
                 const hasSetupDayHere = ev.setupColInWeek === ev.colStart && ev.setupColInWeek >= 0;
-                if (hasSetupDayHere && ev.colEnd > ev.colStart) {
-                  const mainCls = 'cont-left' + (ev.contRight ? ' cont-right' : '');
-                  return [
-                    <div key={`s${ei}`} className="cal-bar setup cont-right"
+                const hasTeardownDayHere = ev.isTeardownHere && ev.colEnd >= 0;
+
+                let mainColStart = ev.colStart;
+                let mainColEnd = ev.colEnd;
+
+                if (hasSetupDayHere) mainColStart += 1;
+                if (hasTeardownDayHere) mainColEnd -= 1;
+
+                const blocks = [];
+
+                if (hasSetupDayHere) {
+                  const connectRight = mainColStart <= ev.colEnd || ev.contRight;
+                  blocks.push(
+                    <div key={`s${ei}`} className={`cal-bar setup ${connectRight ? 'cont-right' : ''}`}
                       style={{ gridColumn: `${ev.colStart + 1} / ${ev.colStart + 2}`, gridRow: ev.lane + 2, background: c.bg, color: c.text, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                      title={`세팅일(출고일): ${ev.popup.setupDate}`}>세팅</div>,
-                    <div key={`m${ei}`} className={`cal-bar ${mainCls}`}
-                      style={{ gridColumn: `${ev.colStart + 2} / ${ev.colEnd + 2}`, gridRow: ev.lane + 2, background: c.bg, color: c.text, boxShadow: `inset 3px 0 0 ${c.text}`, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', paddingRight: ev.isTeardownHere ? '36px' : '9px', paddingLeft: '9px' }}
-                      title={`${ev.popup.name} (진행 ${ev.popup.start} ~ ${ev.popup.end}, 철수 ${ev.popup.end})`}
+                      title={`${ev.popup.name} 세팅일(출고일): ${ev.popup.setupDate}`}
+                      onClick={() => onBarClick(ev.popup)}>세팅</div>
+                  );
+                }
+
+                if (mainColStart <= mainColEnd) {
+                  const contLeft = hasSetupDayHere || ev.contLeft;
+                  const contRight = hasTeardownDayHere || ev.contRight;
+                  const cls = (contLeft ? 'cont-left ' : '') + (contRight ? 'cont-right' : '');
+                  
+                  blocks.push(
+                    <div key={`m${ei}`} className={`cal-bar ${cls}`}
+                      style={{ gridColumn: `${mainColStart + 1} / ${mainColEnd + 2}`, gridRow: ev.lane + 2, background: c.bg, color: c.text, boxShadow: `inset 3px 0 0 ${c.text}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      title={`${ev.popup.name} (진행 ${ev.popup.start} ~ ${ev.popup.end})`}
                       onClick={() => onBarClick(ev.popup)}>
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.popup.name}</span>
-                      {ev.isTeardownHere && <span style={{ position: 'absolute', right: '8px', whiteSpace: 'nowrap' }}>철수</span>}
-                    </div>,
-                  ];
+                    </div>
+                  );
                 }
-                const cls = (ev.contLeft ? 'cont-left ' : '') + (ev.contRight ? 'cont-right' : '');
-                const isPureSetupDay = hasSetupDayHere && ev.colEnd === ev.colStart;
-                return (
-                  <div key={ei} className={`cal-bar ${cls}${isPureSetupDay ? ' setup' : ''}`}
-                    style={{ gridColumn: `${ev.colStart + 1} / ${ev.colEnd + 2}`, gridRow: ev.lane + 2, background: c.bg, color: c.text, ...(isPureSetupDay ? {} : { boxShadow: `inset 3px 0 0 ${c.text}` }), position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', paddingRight: (!isPureSetupDay && ev.isTeardownHere) ? '36px' : '9px', paddingLeft: '9px' }}
-                    title={`${ev.popup.name} (진행 ${ev.popup.start} ~ ${ev.popup.end}, 세팅 ${ev.popup.setupDate}, 철수 ${ev.popup.end})`}
-                    onClick={() => onBarClick(ev.popup)}>
-                    {isPureSetupDay ? (
-                      '세팅'
-                    ) : (
-                      <>
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.popup.name}</span>
-                        {ev.isTeardownHere && <span style={{ position: 'absolute', right: '8px', whiteSpace: 'nowrap' }}>철수</span>}
-                      </>
-                    )}
-                  </div>
-                );
+
+                if (hasTeardownDayHere) {
+                  const connectLeft = mainColStart <= ev.colEnd || ev.contLeft; 
+                  blocks.push(
+                    <div key={`t${ei}`} className={`cal-bar setup ${connectLeft ? 'cont-left' : ''}`}
+                      style={{ gridColumn: `${ev.colEnd + 1} / ${ev.colEnd + 2}`, gridRow: ev.lane + 2, background: c.bg, color: c.text, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      title={`${ev.popup.name} 철수일(회수일): ${ev.popup.end}`}
+                      onClick={() => onBarClick(ev.popup)}>철수</div>
+                  );
+                }
+
+                return blocks;
               })}
               {overflow > 0 && (
                 <div className="cal-overflow" style={{ gridRow: lanesUsed + 2 }}>+{overflow}건 더</div>
