@@ -134,25 +134,35 @@ export default function Calendar({ popups, cursor, onShift, onToday, onBarClick 
                 const hasSetupDayHere = ev.setupColInWeek === ev.colStart && ev.setupColInWeek >= 0;
                 if (hasSetupDayHere && ev.colEnd > ev.colStart) {
                   const mainCls = 'cont-left' + (ev.contRight ? ' cont-right' : '');
-                  const label = ev.popup.name + (ev.isTeardownHere ? ' · 철수' : '');
                   return [
                     <div key={`s${ei}`} className="cal-bar setup cont-right"
-                      style={{ gridColumn: `${ev.colStart + 1} / ${ev.colStart + 2}`, gridRow: ev.lane + 2, background: c.bg, color: c.text }}
+                      style={{ gridColumn: `${ev.colStart + 1} / ${ev.colStart + 2}`, gridRow: ev.lane + 2, background: c.bg, color: c.text, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                       title={`세팅일(출고일): ${ev.popup.setupDate}`}>세팅</div>,
                     <div key={`m${ei}`} className={`cal-bar ${mainCls}`}
-                      style={{ gridColumn: `${ev.colStart + 2} / ${ev.colEnd + 2}`, gridRow: ev.lane + 2, background: c.bg, color: c.text, boxShadow: `inset 3px 0 0 ${c.text}` }}
+                      style={{ gridColumn: `${ev.colStart + 2} / ${ev.colEnd + 2}`, gridRow: ev.lane + 2, background: c.bg, color: c.text, boxShadow: `inset 3px 0 0 ${c.text}`, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', paddingRight: ev.isTeardownHere ? '36px' : '9px', paddingLeft: '9px' }}
                       title={`${ev.popup.name} (진행 ${ev.popup.start} ~ ${ev.popup.end}, 철수 ${ev.popup.end})`}
-                      onClick={() => onBarClick(ev.popup)}>{label}</div>,
+                      onClick={() => onBarClick(ev.popup)}>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.popup.name}</span>
+                      {ev.isTeardownHere && <span style={{ position: 'absolute', right: '8px', whiteSpace: 'nowrap' }}>철수</span>}
+                    </div>,
                   ];
                 }
                 const cls = (ev.contLeft ? 'cont-left ' : '') + (ev.contRight ? 'cont-right' : '');
                 const isPureSetupDay = hasSetupDayHere && ev.colEnd === ev.colStart;
-                const label = isPureSetupDay ? '세팅' : ev.popup.name + (ev.isTeardownHere ? ' · 철수' : '');
                 return (
                   <div key={ei} className={`cal-bar ${cls}${isPureSetupDay ? ' setup' : ''}`}
-                    style={{ gridColumn: `${ev.colStart + 1} / ${ev.colEnd + 2}`, gridRow: ev.lane + 2, background: c.bg, color: c.text, ...(isPureSetupDay ? {} : { boxShadow: `inset 3px 0 0 ${c.text}` }) }}
+                    style={{ gridColumn: `${ev.colStart + 1} / ${ev.colEnd + 2}`, gridRow: ev.lane + 2, background: c.bg, color: c.text, ...(isPureSetupDay ? {} : { boxShadow: `inset 3px 0 0 ${c.text}` }), position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', paddingRight: (!isPureSetupDay && ev.isTeardownHere) ? '36px' : '9px', paddingLeft: '9px' }}
                     title={`${ev.popup.name} (진행 ${ev.popup.start} ~ ${ev.popup.end}, 세팅 ${ev.popup.setupDate}, 철수 ${ev.popup.end})`}
-                    onClick={() => onBarClick(ev.popup)}>{label}</div>
+                    onClick={() => onBarClick(ev.popup)}>
+                    {isPureSetupDay ? (
+                      '세팅'
+                    ) : (
+                      <>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.popup.name}</span>
+                        {ev.isTeardownHere && <span style={{ position: 'absolute', right: '8px', whiteSpace: 'nowrap' }}>철수</span>}
+                      </>
+                    )}
+                  </div>
                 );
               })}
               {overflow > 0 && (
@@ -177,7 +187,7 @@ export default function Calendar({ popups, cursor, onShift, onToday, onBarClick 
               );
             })}
             <div className="cal-legend-item" style={{ color: 'var(--ink-muted-48)' }}>
-              ┊ 점선 = 세팅일(출고일, 시작일 하루 전) · &quot;· 철수&quot; = 종료일(회수일)
+              ┊ 점선 = 세팅일(출고일, 시작일 하루 전) · &quot;철수&quot; = 종료일(회수일)
             </div>
           </>
         )}
