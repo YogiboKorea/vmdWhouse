@@ -35,6 +35,7 @@ export default function Home() {
   const [dashFilter, setDashFilter] = useState(null);
   const [popupTab, setPopupTab] = useState('진행'); // '진행' | '완료'
 
+  const [helpOpen, setHelpOpen] = useState(false);
   const [toast, setToast] = useState('');
   const toastTimer = useRef(null);
   const dashRef = useRef(null);
@@ -66,6 +67,23 @@ export default function Home() {
     return () => { clearInterval(t); bc.close(); };
   }, [loadAll]);
 
+  // 모달이 떠 있는 동안 배경 스크롤 잠금 (스크롤바 사라짐으로 인한 레이아웃 이동 방지)
+  useEffect(() => {
+    const lock = helpOpen || modalOpen;
+    if (lock) {
+      const sw = window.innerWidth - document.documentElement.clientWidth;
+      document.body.style.overflow = 'hidden';
+      document.body.style.paddingRight = sw > 0 ? `${sw}px` : '';
+    } else {
+      document.body.style.overflow = '';
+      document.body.style.paddingRight = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+      document.body.style.paddingRight = '';
+    };
+  }, [helpOpen, modalOpen]);
+
   const loaded = items !== null && popups !== null;
   const editingItem = editingId && items ? items.find((x) => x.id === editingId) : null;
 
@@ -95,15 +113,19 @@ export default function Home() {
     loadAll();
   }
 
-  async function retrievePopup(p) {
+  // 회수는 즉시 처리하지 않고 상세 창(체크리스트)에서 집기를 하나씩 확인하며 진행
+  function retrievePopup(p) {
     const linkedQty = (items || []).reduce(
       (s, it) => s + (it.outbound || []).filter((o) => o.popup === p.name).reduce((a, o) => a + o.qty, 0), 0);
-    if (!confirm(`"${p.name}" 회수 완료 처리할까요?\n출고중인 ${linkedQty}개 집기가 모두 물류센터 재고로 복귀합니다.`)) return;
-    const res = await fetch(`/api/popups/${p.id}/retrieve`, { method: 'POST' });
-    const json = await res.json();
-    if (!res.ok) { showToast(json.error || '회수 처리 실패'); return; }
-    showToast(`회수 완료 — ${json.returnedItems}개 품목 · ${json.returnedQty}개 재고 복귀`);
-    loadAll();
+    if (linkedQty <= 0) {
+      // 나가있는 집기가 없으면 바로 회수완료 마감
+      fetch(`/api/popups/${p.id}/retrieve`, { method: 'POST' }).then(() => {
+        showToast('출고중인 집기가 없어 바로 회수완료 처리했어요');
+        loadAll();
+      });
+      return;
+    }
+    openDetailWindow(p.id);
   }
 
   /* ---------- 집기리스트 필터 + 정렬 + 페이지네이션 (페이지당 20개) ---------- */
@@ -205,6 +227,9 @@ export default function Home() {
             <a href="#items">집기리스트</a>
             <a href="#dashboard">출고 현황</a>
           </nav>
+          <button className="btn btn-ghost" style={{ padding: '9px 16px', fontSize: 13 }} onClick={() => setHelpOpen(true)}>
+            📖 사용설명
+          </button>
           <button className="btn btn-primary" onClick={() => openPopupWindow()}>+ 팝업 추가</button>
         </div>
       </div>
@@ -268,7 +293,7 @@ export default function Home() {
                             <button className="link-btn del" onClick={() => deletePopup(p)}>삭제</button>
                             {st !== '회수완료' && (
                               <button className="link-btn retrieve" onClick={() => retrievePopup(p)}>
-                                {st === '종료' ? '✓ 회수 완료' : '회수 완료'}
+                                {st === '종료' ? '✓ 회수 진행' : '회수 진행'}
                               </button>
                             )}
                           </div>
@@ -474,7 +499,7 @@ export default function Home() {
                         <button className="link-btn view" onClick={() => openDetailWindow(p.id)}>상세 · 집기</button>
                         {st !== '회수완료' && (
                           <button className="link-btn retrieve" onClick={() => retrievePopup(p)}>
-                            {st === '종료' ? '✓ 회수 완료' : '회수 완료'}
+                            {st === '종료' ? '✓ 회수 진행' : '회수 진행'}
                           </button>
                         )}
                       </div>
@@ -486,6 +511,133 @@ export default function Home() {
           )}
         </section>
       </div>
+
+      {helpOpen && (
+        <div className="overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setHelpOpen(false); }}>
+          <div className="modal" style={{ maxWidth: 640 }}>
+            <button className="close-x" onClick={() => setHelpOpen(false)}>✕</button>
+            <h2>📖 프로그램 사용설명</h2>
+
+            <p style={{ fontSize: 13.5, lineHeight: 1.65, color: 'var(--ink-muted-80)', margin: '0 0 20px' }}>
+              물류센터 VMD 집기의 재고를 관리하고, 팝업(행사)별로 어떤 집기가 몇 개 나갔는지 · 언제 돌아오는지를 추적합니다.
+            </p>
+
+            <div className="help-section">
+              <h3>1️⃣ 집기 등록 · 관리</h3>
+              <div className="help-demo">
+                <div className="card" style={{ width: 180, flexShrink: 0 }}>
+                  <div className="thumb" style={{ aspectRatio: 'auto', height: 70 }}>사진</div>
+                  <div className="card-tag-row">
+                    <span className="chip-tag">가구</span>
+                    <span className="badge badge-green">사용가능</span>
+                  </div>
+                  <div className="card-name" style={{ minHeight: 'auto', fontSize: 14 }}>KALLAX 수납장</div>
+                  <div className="card-sub">화이트 · 800*1470</div>
+                  <div className="stock-line" style={{ fontSize: 13 }}>
+                    <span>가용 <b style={{ color: 'var(--primary)', fontSize: 14 }}>3</b></span>
+                    <span className="stock-sep">/</span><span>보유 5</span>
+                    <div className="out-pill" style={{ marginTop: 8 }}>📤 1개 행사 · 2개 출고중</div>
+                  </div>
+                </div>
+                <ul>
+                  <li><b>+ 새 품목</b>으로 등록하고, 카드를 클릭하면 수정·이미지 교체/삭제가 가능해요.</li>
+                  <li>카드에는 <b>가용/보유 수량</b>과 출고중인 행사 수가 표시됩니다.</li>
+                  <li>상단 요약의 <b>재고 미입력 품목</b>을 클릭하면 수량 안 채운 집기만 모아볼 수 있어요.</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="help-section">
+              <h3>2️⃣ 팝업 추가 + 집기 출고</h3>
+              <div className="help-demo" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+                <div className="action-tabs" style={{ maxWidth: 300, marginBottom: 0 }}>
+                  <div className="action-tab active-in">🏬 매장 선택</div>
+                  <div className="action-tab">✏️ 직접 등록</div>
+                </div>
+                <div className="equip-row selected" style={{ background: 'rgba(0,102,204,0.08)', borderRadius: 10 }}>
+                  <div className="equip-check" style={{ background: 'var(--primary)', borderColor: 'var(--primary)' }}>✓</div>
+                  <div className="equip-thumb"><span>사진</span></div>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div className="equip-name">우드 진열대</div>
+                    <div className="equip-meta">진열집기 · 화이트</div>
+                  </div>
+                  <span className="badge badge-blue">담김</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 12.5, color: 'var(--ink-muted-48)' }}>담긴 목록에서 수량 조절 →</span>
+                  <div className="qty-stepper">
+                    <button>−</button><input type="number" value={2} readOnly /><button>+</button>
+                  </div>
+                  <button className="cart-x">✕</button>
+                </div>
+                <ul style={{ marginTop: 4 }}>
+                  <li>매장을 선택하면 <b>주소가 자동 입력</b>되고, 수정도 가능해요. <b>담당 직원</b>은 모든 출고 기록에 남습니다.</li>
+                  <li>집기를 <b>클릭하면 1개 담기고, 다시 클릭하면 취소</b>. 저장하는 순간 담긴 수량만큼 재고에서 <b style={{ color: 'var(--red)' }}>차감(−)</b>됩니다.</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="help-section">
+              <h3>3️⃣ 일정 확인 (달력)</h3>
+              <div className="help-demo" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+                <div style={{ display: 'flex', gap: 3 }}>
+                  <div className="cal-bar setup" style={{ background: '#e6f0fb', color: '#0066cc', width: 64, margin: 0 }}>세팅</div>
+                  <div className="cal-bar" style={{ background: '#e6f0fb', color: '#0066cc', flex: 1, margin: 0 }}>현대백화점 무역센터점 팝업 · 철수</div>
+                </div>
+                <ul style={{ marginTop: 4 }}>
+                  <li><b>점선 = 세팅일</b>(시작 하루 전, 출고일), <b>&quot;· 철수&quot; = 종료일</b>(회수일)</li>
+                  <li>막대를 <b>클릭하면 일정 + 사용중 집기 리스트</b>가 작은 창으로 열립니다.</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="help-section">
+              <h3>4️⃣ 회수 (행사 종료 후)</h3>
+              <div className="help-demo" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--green-bg)', padding: '8px 12px', borderRadius: 10 }}>
+                  <div className="equip-check" style={{ background: 'var(--green)', borderColor: 'var(--green)' }}>✓</div>
+                  <div className="equip-thumb" style={{ width: 34, height: 34 }}><span>사진</span></div>
+                  <span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>우드 진열대</span>
+                  <b style={{ fontSize: 13, color: 'var(--green)' }}>2개</b>
+                </div>
+                <button className="btn btn-primary" style={{ background: 'var(--green)', fontSize: 13, padding: '9px 16px', alignSelf: 'flex-start' }}>
+                  ✓ 체크한 집기 회수 (1종 · +2개)
+                </button>
+                <ul style={{ marginTop: 4 }}>
+                  <li>상세 창에서 <b>집기를 하나씩 클릭해 체크</b>하며 실물을 확인하고 회수하면 재고로 <b style={{ color: 'var(--green)' }}>복귀(+)</b>합니다.</li>
+                  <li>전부 돌아오면 자동으로 <b>회수완료</b> 처리 → 팝업 목록 <b>완료 탭</b>으로 이동해요.</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="help-section">
+              <h3>5️⃣ 상태 & 출고 현황</h3>
+              <div className="help-demo" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', fontSize: 12.5, color: 'var(--ink-muted-48)' }}>
+                  <span className="badge badge-gray">예정</span>
+                  <span>→</span>
+                  <span className="badge badge-green">진행중</span>
+                  <span>→</span>
+                  <span className="badge badge-amber">종료</span>
+                  <span>→</span>
+                  <span className="badge badge-blue">회수완료</span>
+                  <span style={{ marginLeft: 4 }}>종료일이 지나면 자동으로 &quot;종료&quot;로 바뀝니다</span>
+                </div>
+                <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--amber)', background: 'var(--amber-bg)', borderRadius: 10, padding: '9px 12px' }}>
+                  ⚠️ 종료된 팝업 1건에 아직 회수되지 않은 집기 2개가 있어요
+                </div>
+                <ul style={{ marginTop: 0 }}>
+                  <li>출고 현황에는 <b>진행중인 팝업만</b> 표시되고, 회수를 잊으면 위 같은 경고 배너가 떠요.</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="modal-actions">
+              <button className="btn btn-primary" onClick={() => setHelpOpen(false)}>확인</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {modalOpen && (
         <ItemModal

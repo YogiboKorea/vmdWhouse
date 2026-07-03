@@ -1,16 +1,18 @@
 'use client';
 
+// 채도 높은 구분되는 컬러 팔레트 — 팝업 순서대로 돌아가며 배정
 const CAL_PALETTE = [
-  { bg: '#e6f0fb', text: '#0066cc' }, { bg: '#fdeee0', text: '#b05a12' }, { bg: '#e9f6ec', text: '#1a7d3c' },
-  { bg: '#fbe9f0', text: '#b0295f' }, { bg: '#f0eafc', text: '#5b3fb0' }, { bg: '#fdf3d6', text: '#96760a' },
-  { bg: '#e2f6f4', text: '#0d7a72' }, { bg: '#fbe9e9', text: '#c8382e' },
+  { bg: '#dbeafe', text: '#1d4ed8' }, // 파랑
+  { bg: '#ffedd5', text: '#c2410c' }, // 주황
+  { bg: '#dcfce7', text: '#15803d' }, // 초록
+  { bg: '#fce7f3', text: '#be185d' }, // 핑크
+  { bg: '#ede9fe', text: '#6d28d9' }, // 보라
+  { bg: '#ccfbf1', text: '#0f766e' }, // 청록
+  { bg: '#fee2e2', text: '#b91c1c' }, // 빨강
+  { bg: '#fef9c3', text: '#a16207' }, // 노랑
+  { bg: '#e0e7ff', text: '#4338ca' }, // 남색
+  { bg: '#ecfccb', text: '#4d7c0f' }, // 라임
 ];
-
-export function popupColorFor(name) {
-  let h = 0;
-  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) % CAL_PALETTE.length;
-  return CAL_PALETTE[h];
-}
 
 const fmt = (d) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -27,6 +29,11 @@ const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
 export default function Calendar({ popups, cursor, onShift, onToday, onBarClick }) {
   const year = cursor.getFullYear();
   const month = cursor.getMonth();
+
+  // 팝업 등록 순서대로 팔레트 배정 (해시 충돌로 비슷한 색이 나오는 것 방지)
+  const colorMap = {};
+  popups.forEach((p, i) => { colorMap[p.name] = CAL_PALETTE[i % CAL_PALETTE.length]; });
+  const colorFor = (name) => colorMap[name] || CAL_PALETTE[0];
 
   const firstOfMonth = new Date(year, month, 1);
   const startOffset = firstOfMonth.getDay();
@@ -123,7 +130,7 @@ export default function Calendar({ popups, cursor, onShift, onToday, onBarClick 
                 </div>
               ))}
               {weekEvents.filter((ev) => ev.lane >= 0).map((ev, ei) => {
-                const c = popupColorFor(ev.popup.name);
+                const c = colorFor(ev.popup.name);
                 const hasSetupDayHere = ev.setupColInWeek === ev.colStart && ev.setupColInWeek >= 0;
                 if (hasSetupDayHere && ev.colEnd > ev.colStart) {
                   const mainCls = 'cont-left' + (ev.contRight ? ' cont-right' : '');
@@ -133,7 +140,7 @@ export default function Calendar({ popups, cursor, onShift, onToday, onBarClick 
                       style={{ gridColumn: `${ev.colStart + 1} / ${ev.colStart + 2}`, gridRow: ev.lane + 2, background: c.bg, color: c.text }}
                       title={`세팅일(출고일): ${ev.popup.setupDate}`}>세팅</div>,
                     <div key={`m${ei}`} className={`cal-bar ${mainCls}`}
-                      style={{ gridColumn: `${ev.colStart + 2} / ${ev.colEnd + 2}`, gridRow: ev.lane + 2, background: c.bg, color: c.text }}
+                      style={{ gridColumn: `${ev.colStart + 2} / ${ev.colEnd + 2}`, gridRow: ev.lane + 2, background: c.bg, color: c.text, boxShadow: `inset 3px 0 0 ${c.text}` }}
                       title={`${ev.popup.name} (진행 ${ev.popup.start} ~ ${ev.popup.end}, 철수 ${ev.popup.end})`}
                       onClick={() => onBarClick(ev.popup)}>{label}</div>,
                   ];
@@ -143,7 +150,7 @@ export default function Calendar({ popups, cursor, onShift, onToday, onBarClick 
                 const label = isPureSetupDay ? '세팅' : ev.popup.name + (ev.isTeardownHere ? ' · 철수' : '');
                 return (
                   <div key={ei} className={`cal-bar ${cls}${isPureSetupDay ? ' setup' : ''}`}
-                    style={{ gridColumn: `${ev.colStart + 1} / ${ev.colEnd + 2}`, gridRow: ev.lane + 2, background: c.bg, color: c.text }}
+                    style={{ gridColumn: `${ev.colStart + 1} / ${ev.colEnd + 2}`, gridRow: ev.lane + 2, background: c.bg, color: c.text, ...(isPureSetupDay ? {} : { boxShadow: `inset 3px 0 0 ${c.text}` }) }}
                     title={`${ev.popup.name} (진행 ${ev.popup.start} ~ ${ev.popup.end}, 세팅 ${ev.popup.setupDate}, 철수 ${ev.popup.end})`}
                     onClick={() => onBarClick(ev.popup)}>{label}</div>
                 );
@@ -162,7 +169,7 @@ export default function Calendar({ popups, cursor, onShift, onToday, onBarClick 
         ) : (
           <>
             {withDates.map((p) => {
-              const c = popupColorFor(p.name);
+              const c = colorFor(p.name);
               return (
                 <div key={p.id} className="cal-legend-item">
                   <span className="cal-legend-dot" style={{ background: c.text }} />{p.name}

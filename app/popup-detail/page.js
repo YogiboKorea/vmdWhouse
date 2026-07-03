@@ -30,6 +30,7 @@ function DetailBody() {
   const [items, setItems] = useState(null);
   const [err, setErr] = useState('');
   const [checked, setChecked] = useState(() => new Set()); // 회수 확인 체크된 품목 id
+  const [modes, setModes] = useState({}); // itemId → '회수' | '폐기'
   const [processing, setProcessing] = useState(false);
 
   const load = useCallback(async () => {
@@ -70,6 +71,9 @@ function DetailBody() {
 
   const checkedRows = allocRows.filter((r) => checked.has(r.item.id));
   const checkedQty = checkedRows.reduce((s, r) => s + r.qty, 0);
+  const modeOf = (itemId) => modes[itemId] || '회수';
+  const returnRows = checkedRows.filter((r) => modeOf(r.item.id) === '회수');
+  const disposeRows = checkedRows.filter((r) => modeOf(r.item.id) === '폐기');
 
   function toggleCheck(itemId) {
     setChecked((prev) => {
@@ -80,23 +84,33 @@ function DetailBody() {
     });
   }
 
+  function setMode(itemId, mode) {
+    setModes((prev) => ({ ...prev, [itemId]: mode }));
+    setChecked((prev) => new Set(prev).add(itemId)); // 모드 선택 시 자동 체크
+  }
+
   function notifyChanged() {
     const bc = new BroadcastChannel('vmd-sync');
     bc.postMessage('changed');
     bc.close();
   }
 
-  // 체크한 집기만 하나씩 반납 처리 — 모두 회수되면 팝업을 회수완료로 마감
+  // 체크한 집기를 선택한 방식대로 처리 (재고 복귀 / 폐기) — 모두 처리되면 팝업을 회수완료로 마감
   async function retrieveChecked() {
     if (!checkedRows.length) return;
-    if (!confirm(`체크한 집기 ${checkedRows.length}종 · ${checkedQty}개를 회수 처리할까요?\n해당 수량이 물류센터 재고로 복귀합니다.`)) return;
+    const parts = [];
+    if (returnRows.length) parts.push(`재고 복귀 ${returnRows.length}종 ${returnRows.reduce((s, r) => s + r.qty, 0)}개`);
+    if (disposeRows.length) parts.push(`폐기 ${disposeRows.length}종 ${disposeRows.reduce((s, r) => s + r.qty, 0)}개`);
+    const warn = disposeRows.length ? '\n⚠️ 폐기된 수량은 보유 재고에서 완전히 제외됩니다.' : '';
+    if (!confirm(`체크한 집기를 처리할까요?\n${parts.join(' · ')}${warn}`)) return;
     setProcessing(true);
     const fails = [];
     for (const row of checkedRows) {
+      const type = modeOf(row.item.id) === '폐기' ? '폐기' : '입고';
       const res = await fetch(`/api/items/${row.item.id}/tx`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: '입고', qty: row.qty, staff: '회수확인', popup: popup.name }),
+        body: JSON.stringify({ type, qty: row.qty, staff: '회수확인', popup: popup.name }),
       });
       if (!res.ok) fails.push(row.item.name);
     }
@@ -106,11 +120,12 @@ function DetailBody() {
       await fetch(`/api/popups/${popup.id}/retrieve`, { method: 'POST' });
     }
     setChecked(new Set());
+    setModes({});
     setProcessing(false);
     notifyChanged();
     await load();
     if (fails.length) alert(`일부 실패: ${fails.join(', ')}`);
-    else if (remaining <= 0) alert('모든 집기 회수 완료 — 팝업이 회수완료 처리되었습니다.');
+    else if (remaining <= 0) alert('모든 집기 처리 완료 — 팝업이 회수완료 처리되었습니다.');
   }
 
   async function retrieve() {
@@ -179,14 +194,18 @@ function DetailBody() {
         <div style={{ border: '1px solid var(--divider-soft)', borderRadius: 12, overflow: 'hidden', marginBottom: 4 }}>
           {allocRows.map((row, i) => {
             const isChecked = checked.has(row.item.id);
+            const mode = modeOf(row.item.id);
+            const isDispose = isChecked && mode === '폐기';
+            const accent = isDispose ? 'var(--red)' : 'var(--green)';
+            const accentBg = isDispose ? 'var(--red-bg)' : 'var(--green-bg)';
             return (
               <div key={row.item.id} onClick={() => toggleCheck(row.item.id)} style={{
                 display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', cursor: 'pointer',
-                background: isChecked ? 'var(--green-bg)' : 'transparent',
+                background: isChecked ? accentBg : 'transparent',
                 borderBottom: i < allocRows.length - 1 ? '1px solid var(--divider-soft)' : 'none',
               }}>
-                <div className="equip-check" style={isChecked ? { background: 'var(--green)', borderColor: 'var(--green)' } : {}}>
-                  {isChecked ? '✓' : ''}
+                <div className="equip-check" style={isChecked ? { background: accent, borderColor: accent } : {}}>
+                  {isChecked ? (isDispose ? '✕' : '✓') : ''}
                 </div>
                 <div style={{ width: 44, height: 44, borderRadius: 8, background: 'var(--pearl)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0, fontSize: 10, color: 'var(--ink-muted-48)' }}>
                   {row.item.thumbnail ? <img src={row.item.thumbnail} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : '없음'}
@@ -199,7 +218,14 @@ function DetailBody() {
                     {row.staff ? ` · ${row.staff}` : ''}
                   </div>
                 </div>
-                <b style={{ fontSize: 14, whiteSpace: 'nowrap', color: isChecked ? 'var(--green)' : 'var(--ink)' }}>{row.qty}개</b>
+                {/* 처리 방식 선택: 재고 복귀 / 폐기 */}
+                <div style={{ display: 'flex', gap: 4, flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+                  <button className="mode-chip" style={isChecked && mode === '회수' ? { background: 'var(--green)', borderColor: 'var(--green)', color: '#fff' } : {}}
+                    onClick={() => setMode(row.item.id, '회수')}>재고 복귀</button>
+                  <button className="mode-chip" style={isDispose ? { background: 'var(--red)', borderColor: 'var(--red)', color: '#fff' } : {}}
+                    onClick={() => setMode(row.item.id, '폐기')}>폐기</button>
+                </div>
+                <b style={{ fontSize: 14, whiteSpace: 'nowrap', color: isChecked ? accent : 'var(--ink)' }}>{row.qty}개</b>
               </div>
             );
           })}
@@ -208,12 +234,11 @@ function DetailBody() {
 
       {allocRows.length > 0 && (
         <button className="btn btn-primary" disabled={!checkedRows.length || processing}
-          style={{ width: '100%', marginTop: 12, background: checkedRows.length ? 'var(--green)' : undefined }}
+          style={{ width: '100%', marginTop: 12, background: checkedRows.length ? (disposeRows.length && !returnRows.length ? 'var(--red)' : 'var(--green)') : undefined }}
           onClick={retrieveChecked}>
-          {processing ? '회수 처리 중...'
-            : checkedRows.length
-              ? `✓ 체크한 집기 회수 (${checkedRows.length}종 · +${checkedQty}개)`
-              : '집기를 클릭해 체크하세요'}
+          {processing ? '처리 중...'
+            : !checkedRows.length ? '집기를 클릭해 체크하세요'
+            : `✓ 체크한 집기 처리${returnRows.length ? ` · 복귀 ${returnRows.length}종 +${returnRows.reduce((s, r) => s + r.qty, 0)}개` : ''}${disposeRows.length ? ` · 폐기 ${disposeRows.length}종 −${disposeRows.reduce((s, r) => s + r.qty, 0)}개` : ''}`}
         </button>
       )}
 

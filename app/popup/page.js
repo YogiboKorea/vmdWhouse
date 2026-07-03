@@ -326,7 +326,7 @@ function PopupForm() {
       <div className="row2">
         <div className="field">
           <label>담당 직원</label>
-          <input type="text" value={form.manager} onChange={set('manager')} placeholder="예: 홍길동" />
+          <input type="text" value={form.manager} onChange={set('manager')} placeholder="예: 요기코" />
         </div>
         <div className="field">
           <label>상태</label>
