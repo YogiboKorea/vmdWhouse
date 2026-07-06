@@ -31,6 +31,7 @@ function DetailBody() {
   const [err, setErr] = useState('');
   const [checked, setChecked] = useState(() => new Set()); // 회수 확인 체크된 품목 id
   const [modes, setModes] = useState({}); // itemId → '회수' | '폐기'
+  const [disposeQtys, setDisposeQtys] = useState({}); // itemId → 폐기 수량 (나머지는 복귀)
   const [processing, setProcessing] = useState(false);
 
   const load = useCallback(async () => {
@@ -70,10 +71,24 @@ function DetailBody() {
   const setupDate = popup.start ? addDays(popup.start, -1) : '';
 
   const checkedRows = allocRows.filter((r) => checked.has(r.item.id));
-  const checkedQty = checkedRows.reduce((s, r) => s + r.qty, 0);
   const modeOf = (itemId) => modes[itemId] || '회수';
-  const returnRows = checkedRows.filter((r) => modeOf(r.item.id) === '회수');
-  const disposeRows = checkedRows.filter((r) => modeOf(r.item.id) === '폐기');
+  // 폐기 수량 (1 ~ row.qty), 나머지는 자동 복귀
+  const disposeQtyOf = (row) => {
+    const raw = disposeQtys[row.item.id];
+    return Math.min(Math.max(1, raw == null ? 1 : raw), row.qty);
+  };
+
+  // 체크한 집기의 복귀/폐기 수량 집계
+  let returnUnits = 0, disposeUnits = 0;
+  checkedRows.forEach((r) => {
+    if (modeOf(r.item.id) === '폐기') {
+      const d = disposeQtyOf(r);
+      disposeUnits += d;
+      returnUnits += r.qty - d;
+    } else {
+      returnUnits += r.qty;
+    }
+  });
 
   function toggleCheck(itemId) {
     setChecked((prev) => {
@@ -89,38 +104,61 @@ function DetailBody() {
     setChecked((prev) => new Set(prev).add(itemId)); // 모드 선택 시 자동 체크
   }
 
+  function setDisposeQty(itemId, next, maxQty) {
+    const qn = Math.min(Math.max(1, parseInt(next) || 1), maxQty);
+    setDisposeQtys((prev) => ({ ...prev, [itemId]: qn }));
+  }
+
   function notifyChanged() {
     const bc = new BroadcastChannel('vmd-sync');
     bc.postMessage('changed');
     bc.close();
   }
 
-  // 체크한 집기를 선택한 방식대로 처리 (재고 복귀 / 폐기) — 모두 처리되면 팝업을 회수완료로 마감
-  async function retrieveChecked() {
-    if (!checkedRows.length) return;
-    const parts = [];
-    if (returnRows.length) parts.push(`재고 복귀 ${returnRows.length}종 ${returnRows.reduce((s, r) => s + r.qty, 0)}개`);
-    if (disposeRows.length) parts.push(`폐기 ${disposeRows.length}종 ${disposeRows.reduce((s, r) => s + r.qty, 0)}개`);
-    const warn = disposeRows.length ? '\n⚠️ 폐기된 수량은 보유 재고에서 완전히 제외됩니다.' : '';
-    if (!confirm(`체크한 집기를 처리할까요?\n${parts.join(' · ')}${warn}`)) return;
-    setProcessing(true);
-    const fails = [];
-    for (const row of checkedRows) {
-      const type = modeOf(row.item.id) === '폐기' ? '폐기' : '입고';
+  // 한 품목에 대한 tx 호출 (폐기분 먼저, 남은 수량 복귀). 성공 여부 반환
+  async function processRow(row) {
+    const calls = [];
+    if (modeOf(row.item.id) === '폐기') {
+      const d = disposeQtyOf(row);
+      calls.push({ type: '폐기', qty: d });
+      if (row.qty - d > 0) calls.push({ type: '입고', qty: row.qty - d });
+    } else {
+      calls.push({ type: '입고', qty: row.qty });
+    }
+    for (const c of calls) {
       const res = await fetch(`/api/items/${row.item.id}/tx`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type, qty: row.qty, staff: '회수확인', popup: popup.name }),
+        body: JSON.stringify({ ...c, staff: '회수확인', popup: popup.name }),
       });
-      if (!res.ok) fails.push(row.item.name);
+      if (!res.ok) return false;
+    }
+    return true;
+  }
+
+  // 체크한 집기를 선택한 방식대로 처리 (재고 복귀 / 부분·전체 폐기) — 모두 처리되면 팝업을 회수완료로 마감
+  async function retrieveChecked() {
+    if (!checkedRows.length) return;
+    const parts = [];
+    if (returnUnits) parts.push(`재고 복귀 ${returnUnits}개`);
+    if (disposeUnits) parts.push(`폐기 ${disposeUnits}개`);
+    const warn = disposeUnits ? '\n⚠️ 폐기 수량은 보유 재고에서 완전히 제외됩니다.' : '';
+    if (!confirm(`체크한 집기 ${checkedRows.length}종을 처리할까요?\n${parts.join(' · ')}${warn}`)) return;
+    setProcessing(true);
+    let okCount = 0;
+    const fails = [];
+    for (const row of checkedRows) {
+      if (await processRow(row)) okCount++;
+      else fails.push(row.item.name);
     }
     // 남은 출고가 없으면 팝업 자체를 회수완료로 마감
-    const remaining = allocRows.length - (checkedRows.length - fails.length);
+    const remaining = allocRows.length - okCount;
     if (remaining <= 0 && st !== '회수완료') {
       await fetch(`/api/popups/${popup.id}/retrieve`, { method: 'POST' });
     }
     setChecked(new Set());
     setModes({});
+    setDisposeQtys({});
     setProcessing(false);
     notifyChanged();
     await load();
@@ -198,34 +236,62 @@ function DetailBody() {
             const isDispose = isChecked && mode === '폐기';
             const accent = isDispose ? 'var(--red)' : 'var(--green)';
             const accentBg = isDispose ? 'var(--red-bg)' : 'var(--green-bg)';
+            const dQty = disposeQtyOf(row);
+            const backQty = row.qty - dQty;
             return (
-              <div key={row.item.id} onClick={() => toggleCheck(row.item.id)} style={{
-                display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', cursor: 'pointer',
+              <div key={row.item.id} style={{
                 background: isChecked ? accentBg : 'transparent',
                 borderBottom: i < allocRows.length - 1 ? '1px solid var(--divider-soft)' : 'none',
               }}>
-                <div className="equip-check" style={isChecked ? { background: accent, borderColor: accent } : {}}>
-                  {isChecked ? (isDispose ? '✕' : '✓') : ''}
-                </div>
-                <div style={{ width: 44, height: 44, borderRadius: 8, background: 'var(--pearl)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0, fontSize: 10, color: 'var(--ink-muted-48)' }}>
-                  {row.item.thumbnail ? <img src={row.item.thumbnail} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : '없음'}
-                </div>
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.item.name}</div>
-                  <div style={{ fontSize: 11.5, color: 'var(--ink-muted-48)', marginTop: 1 }}>
-                    {row.item.category || '미분류'}
-                    {row.date ? ` · 출고 ${row.date}` : ''}
-                    {row.staff ? ` · ${row.staff}` : ''}
+                <div onClick={() => toggleCheck(row.item.id)} style={{
+                  display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', cursor: 'pointer',
+                }}>
+                  <div className="equip-check" style={isChecked ? { background: accent, borderColor: accent } : {}}>
+                    {isChecked ? (isDispose ? '✕' : '✓') : ''}
                   </div>
+                  <div style={{ width: 44, height: 44, borderRadius: 8, background: 'var(--pearl)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0, fontSize: 10, color: 'var(--ink-muted-48)' }}>
+                    {row.item.thumbnail ? <img src={row.item.thumbnail} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : '없음'}
+                  </div>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.item.name}</div>
+                    <div style={{ fontSize: 11.5, color: 'var(--ink-muted-48)', marginTop: 1 }}>
+                      {row.item.category || '미분류'}
+                      {row.date ? ` · 출고 ${row.date}` : ''}
+                      {row.staff ? ` · ${row.staff}` : ''}
+                    </div>
+                  </div>
+                  {/* 처리 방식 선택: 재고 복귀 / 폐기 */}
+                  <div style={{ display: 'flex', gap: 4, flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+                    <button className="mode-chip" style={isChecked && mode === '회수' ? { background: 'var(--green)', borderColor: 'var(--green)', color: '#fff' } : {}}
+                      onClick={() => setMode(row.item.id, '회수')}>재고 복귀</button>
+                    <button className="mode-chip" style={isDispose ? { background: 'var(--red)', borderColor: 'var(--red)', color: '#fff' } : {}}
+                      onClick={() => setMode(row.item.id, '폐기')}>폐기</button>
+                  </div>
+                  <b style={{ fontSize: 14, whiteSpace: 'nowrap', color: isChecked ? accent : 'var(--ink)' }}>{row.qty}개</b>
                 </div>
-                {/* 처리 방식 선택: 재고 복귀 / 폐기 */}
-                <div style={{ display: 'flex', gap: 4, flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
-                  <button className="mode-chip" style={isChecked && mode === '회수' ? { background: 'var(--green)', borderColor: 'var(--green)', color: '#fff' } : {}}
-                    onClick={() => setMode(row.item.id, '회수')}>재고 복귀</button>
-                  <button className="mode-chip" style={isDispose ? { background: 'var(--red)', borderColor: 'var(--red)', color: '#fff' } : {}}
-                    onClick={() => setMode(row.item.id, '폐기')}>폐기</button>
-                </div>
-                <b style={{ fontSize: 14, whiteSpace: 'nowrap', color: isChecked ? accent : 'var(--ink)' }}>{row.qty}개</b>
+
+                {/* 폐기 선택 시: 1개 초과면 폐기 수량 지정, 나머지는 복귀 */}
+                {isDispose && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 12px 12px 66px', flexWrap: 'wrap' }}>
+                    {row.qty > 1 ? (
+                      <>
+                        <span style={{ fontSize: 12, color: 'var(--ink-muted-80)' }}>폐기 수량</span>
+                        <div className="qty-stepper" onClick={(e) => e.stopPropagation()}>
+                          <button onClick={() => setDisposeQty(row.item.id, dQty - 1, row.qty)} disabled={dQty <= 1}>−</button>
+                          <input type="number" min="1" max={row.qty} value={dQty}
+                            onChange={(e) => setDisposeQty(row.item.id, e.target.value, row.qty)} />
+                          <button onClick={() => setDisposeQty(row.item.id, dQty + 1, row.qty)} disabled={dQty >= row.qty}>+</button>
+                        </div>
+                        <span style={{ fontSize: 12, fontWeight: 600 }}>
+                          <span style={{ color: 'var(--red)' }}>폐기 {dQty}개</span>
+                          {backQty > 0 && <span style={{ color: 'var(--green)' }}> · 복귀 {backQty}개</span>}
+                        </span>
+                      </>
+                    ) : (
+                      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--red)' }}>1개 전량 폐기</span>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -234,11 +300,11 @@ function DetailBody() {
 
       {allocRows.length > 0 && (
         <button className="btn btn-primary" disabled={!checkedRows.length || processing}
-          style={{ width: '100%', marginTop: 12, background: checkedRows.length ? (disposeRows.length && !returnRows.length ? 'var(--red)' : 'var(--green)') : undefined }}
+          style={{ width: '100%', marginTop: 12, background: checkedRows.length ? (disposeUnits && !returnUnits ? 'var(--red)' : 'var(--green)') : undefined }}
           onClick={retrieveChecked}>
           {processing ? '처리 중...'
             : !checkedRows.length ? '집기를 클릭해 체크하세요'
-            : `✓ 체크한 집기 처리${returnRows.length ? ` · 복귀 ${returnRows.length}종 +${returnRows.reduce((s, r) => s + r.qty, 0)}개` : ''}${disposeRows.length ? ` · 폐기 ${disposeRows.length}종 −${disposeRows.reduce((s, r) => s + r.qty, 0)}개` : ''}`}
+            : `✓ 체크한 집기 처리${returnUnits ? ` · 복귀 +${returnUnits}개` : ''}${disposeUnits ? ` · 폐기 −${disposeUnits}개` : ''}`}
         </button>
       )}
 
