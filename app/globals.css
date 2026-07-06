@@ -212,6 +212,27 @@ button{font-family:inherit;}
 .help-demo .equip-row.selected{background:rgba(0,102,204,0.08);}
 .help-demo ul{flex:1;min-width:240px;}
 
+/* 업무 흐름 요약 */
+.help-flow{display:flex;align-items:stretch;gap:6px;background:var(--pearl);border-radius:14px;padding:14px 12px;margin-bottom:14px;}
+.help-flow-step{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;text-align:center;font-size:12.5px;font-weight:700;color:var(--ink);}
+.help-flow-step small{font-size:11px;font-weight:500;color:var(--ink-muted-48);}
+.help-flow-ico{font-size:20px;}
+.help-flow-arrow{display:flex;align-items:center;color:var(--ink-muted-48);font-size:14px;}
+
+/* 용어 사전 */
+.help-terms{display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;background:var(--canvas);border:1px solid var(--hairline);border-radius:12px;padding:14px 16px;margin-bottom:22px;}
+.help-terms>div{display:flex;gap:8px;align-items:baseline;font-size:12.5px;}
+.help-terms b{flex-shrink:0;min-width:52px;color:var(--primary);font-weight:700;}
+.help-terms span{color:var(--ink-muted-80);line-height:1.4;}
+
+/* 섹션 번호 배지 */
+.help-num{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--primary);color:#fff;font-size:12px;font-weight:700;margin-right:8px;}
+.help-section h3 small{font-size:12px;font-weight:500;color:var(--ink-muted-48);margin-left:4px;}
+
+/* 팁 콜아웃 */
+.help-tip{font-size:12.5px;line-height:1.6;color:var(--ink-muted-80);background:rgba(0,102,204,0.06);border-radius:10px;padding:10px 13px;margin-top:10px;}
+.help-tip b{color:var(--ink);}
+
 /* pagination */
 .pagination{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:28px;flex-wrap:wrap;}
 .pagination-info{font-size:12px;color:var(--ink-muted-48);margin-right:10px;}

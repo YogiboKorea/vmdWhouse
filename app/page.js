@@ -518,12 +518,34 @@ export default function Home() {
             <button className="close-x" onClick={() => setHelpOpen(false)}>✕</button>
             <h2>📖 프로그램 사용설명</h2>
 
-            <p style={{ fontSize: 13.5, lineHeight: 1.65, color: 'var(--ink-muted-80)', margin: '0 0 20px' }}>
+            <p style={{ fontSize: 13.5, lineHeight: 1.65, color: 'var(--ink-muted-80)', margin: '0 0 16px' }}>
               물류센터 VMD 집기의 재고를 관리하고, 팝업(행사)별로 어떤 집기가 몇 개 나갔는지 · 언제 돌아오는지를 추적합니다.
+              집기가 <b>나가면 재고 차감(−)</b>, <b>돌아오면 복귀(+)</b> — 이 한 줄이 프로그램의 핵심이에요.
             </p>
 
+            {/* 한눈에 보는 업무 흐름 */}
+            <div className="help-flow">
+              <div className="help-flow-step"><span className="help-flow-ico">📦</span>집기 등록<small>재고 입력</small></div>
+              <span className="help-flow-arrow">→</span>
+              <div className="help-flow-step"><span className="help-flow-ico">🏬</span>팝업 추가<small>집기 출고(−)</small></div>
+              <span className="help-flow-arrow">→</span>
+              <div className="help-flow-step"><span className="help-flow-ico">📅</span>행사 진행<small>현황 확인</small></div>
+              <span className="help-flow-arrow">→</span>
+              <div className="help-flow-step"><span className="help-flow-ico">✅</span>회수/폐기<small>재고 복귀(+)</small></div>
+            </div>
+
+            {/* 용어 사전 */}
+            <div className="help-terms">
+              <div><b>보유</b><span>물류센터가 원래 가진 총 수량</span></div>
+              <div><b>출고중</b><span>지금 팝업에 나가 있는 수량</span></div>
+              <div><b>가용</b><span>= 보유 − 출고중 (지금 내보낼 수 있는 수량)</span></div>
+              <div><b>세팅일</b><span>시작일 하루 전 = 집기 출고일</span></div>
+              <div><b>철수일</b><span>종료일 = 집기 회수일</span></div>
+              <div><b>회수완료</b><span>나간 집기가 모두 돌아와 마감된 상태</span></div>
+            </div>
+
             <div className="help-section">
-              <h3>1️⃣ 집기 등록 · 관리</h3>
+              <h3><span className="help-num">1</span>집기 등록 · 관리 <small>(집기리스트)</small></h3>
               <div className="help-demo">
                 <div className="card" style={{ width: 180, flexShrink: 0 }}>
                   <div className="thumb" style={{ aspectRatio: 'auto', height: 70 }}>사진</div>
@@ -540,15 +562,17 @@ export default function Home() {
                   </div>
                 </div>
                 <ul>
-                  <li><b>+ 새 품목</b>으로 등록하고, 카드를 클릭하면 수정·이미지 교체/삭제가 가능해요.</li>
-                  <li>카드에는 <b>가용/보유 수량</b>과 출고중인 행사 수가 표시됩니다.</li>
-                  <li>상단 요약의 <b>재고 미입력 품목</b>을 클릭하면 수량 안 채운 집기만 모아볼 수 있어요.</li>
+                  <li><b>+ 새 품목</b>으로 집기를 등록해요. 이름·카테고리·컬러·사이즈·<b>총 보유수량</b>을 입력하고 사진을 올리면 자동으로 서버에 저장됩니다.</li>
+                  <li>카드를 클릭하면 상세에서 <b>수정 · 이미지 교체/삭제 · 재고 수정</b>이 가능해요. 사진을 지우고 &quot;사진없음&quot;으로도 바꿀 수 있어요.</li>
+                  <li>상단 검색은 <b>이름·컬러·사이즈·비고</b>까지 찾고, 카테고리 칩과 정렬(가용순·출고순 등)으로 좁힐 수 있어요. 한 페이지 <b>18개</b>씩 표시됩니다.</li>
+                  <li>파손·수리중·폐기 등 <b>상태</b>도 지정할 수 있어요.</li>
                 </ul>
               </div>
+              <div className="help-tip">💡 상단 요약 카드의 <b>&quot;재고 미입력 품목&quot;</b>을 클릭하면 아직 보유수량을 0으로 둔 집기만 모아볼 수 있어요. 이관 직후 수량 채우기에 딱 좋아요.</div>
             </div>
 
             <div className="help-section">
-              <h3>2️⃣ 팝업 추가 + 집기 출고</h3>
+              <h3><span className="help-num">2</span>팝업 추가 + 집기 출고</h3>
               <div className="help-demo" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
                 <div className="action-tabs" style={{ maxWidth: 300, marginBottom: 0 }}>
                   <div className="action-tab active-in">🏬 매장 선택</div>
@@ -571,47 +595,62 @@ export default function Home() {
                   <button className="cart-x">✕</button>
                 </div>
                 <ul style={{ marginTop: 4 }}>
-                  <li>매장을 선택하면 <b>주소가 자동 입력</b>되고, 수정도 가능해요. <b>담당 직원</b>은 모든 출고 기록에 남습니다.</li>
-                  <li>집기를 <b>클릭하면 1개 담기고, 다시 클릭하면 취소</b>. 저장하는 순간 담긴 수량만큼 재고에서 <b style={{ color: 'var(--red)' }}>차감(−)</b>됩니다.</li>
+                  <li>상단 <b>+ 팝업 추가</b>를 누르면 작은 창이 옆에 열려요. 메인 화면은 그대로 두고 작업할 수 있어요.</li>
+                  <li>행사명은 <b>매장 선택</b>(등록된 매장에서 고르면 주소 자동 입력, 수정 가능) 또는 <b>직접 등록</b> 중 선택해요.</li>
+                  <li><b>담당 직원</b>을 적으면 이 팝업의 모든 출고·회수 기록에 자동으로 남아요.</li>
+                  <li>아래 검색 리스트에서 집기를 <b>클릭하면 1개 담기고, 다시 클릭하면 취소</b>돼요. 담긴 목록의 <b>− / +</b>로 수량을 정합니다.</li>
+                  <li><b>저장하는 순간</b> 담긴 수량만큼 가용 재고에서 <b style={{ color: 'var(--red)' }}>차감(−)</b>됩니다. 가용보다 많이는 나갈 수 없어요.</li>
                 </ul>
               </div>
+              <div className="help-tip">💡 이미 저장된 팝업을 수정하면서 집기를 <b>추가 출고</b>하거나, 사용중 집기를 <b>개별 반납</b>할 수도 있어요.</div>
             </div>
 
             <div className="help-section">
-              <h3>3️⃣ 일정 확인 (달력)</h3>
+              <h3><span className="help-num">3</span>일정 확인 <small>(달력)</small></h3>
               <div className="help-demo" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
                 <div style={{ display: 'flex', gap: 3 }}>
-                  <div className="cal-bar setup" style={{ background: '#e6f0fb', color: '#0066cc', width: 64, margin: 0 }}>세팅</div>
-                  <div className="cal-bar" style={{ background: '#e6f0fb', color: '#0066cc', flex: 1, margin: 0 }}>현대백화점 무역센터점 팝업 · 철수</div>
+                  <div className="cal-bar setup" style={{ background: '#dbeafe', color: '#1d4ed8', width: 64, margin: 0 }}>세팅</div>
+                  <div className="cal-bar" style={{ background: '#dbeafe', color: '#1d4ed8', flex: 1, margin: 0, boxShadow: 'inset 3px 0 0 #1d4ed8' }}>현대백화점 무역센터점 팝업 · 철수</div>
                 </div>
                 <ul style={{ marginTop: 4 }}>
-                  <li><b>점선 = 세팅일</b>(시작 하루 전, 출고일), <b>&quot;· 철수&quot; = 종료일</b>(회수일)</li>
-                  <li>막대를 <b>클릭하면 일정 + 사용중 집기 리스트</b>가 작은 창으로 열립니다.</li>
+                  <li>팝업마다 <b>고유 색상</b>의 막대로 진행 기간이 표시돼요.</li>
+                  <li><b>점선 &quot;세팅&quot; = 세팅일</b>(시작 하루 전, 출고일), 막대 끝의 <b>&quot;· 철수&quot; = 종료일</b>(회수일)이에요.</li>
+                  <li>막대를 <b>클릭</b>하면 그 팝업의 <b>일정 + 사용중 집기 리스트</b>가 작은 창으로 열립니다.</li>
+                  <li>오른쪽 <b>팝업 목록</b>은 진행/완료 탭으로 나뉘어 있어요.</li>
                 </ul>
               </div>
             </div>
 
             <div className="help-section">
-              <h3>4️⃣ 회수 (행사 종료 후)</h3>
+              <h3><span className="help-num">4</span>회수 · 폐기 <small>(행사 종료 후)</small></h3>
               <div className="help-demo" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--green-bg)', padding: '8px 12px', borderRadius: 10 }}>
-                  <div className="equip-check" style={{ background: 'var(--green)', borderColor: 'var(--green)' }}>✓</div>
-                  <div className="equip-thumb" style={{ width: 34, height: 34 }}><span>사진</span></div>
-                  <span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>우드 진열대</span>
-                  <b style={{ fontSize: 13, color: 'var(--green)' }}>2개</b>
+                <div style={{ background: 'var(--red-bg)', padding: '8px 12px', borderRadius: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div className="equip-check" style={{ background: 'var(--red)', borderColor: 'var(--red)' }}>✕</div>
+                    <div className="equip-thumb" style={{ width: 34, height: 34 }}><span>사진</span></div>
+                    <span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>우드 진열대</span>
+                    <span className="mode-chip" style={{ background: 'var(--red)', borderColor: 'var(--red)', color: '#fff' }}>폐기</span>
+                    <b style={{ fontSize: 13, color: 'var(--red)' }}>2개</b>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 40, marginTop: 6 }}>
+                    <span style={{ fontSize: 12 }}>폐기 수량</span>
+                    <div className="qty-stepper"><button>−</button><input type="number" value={1} readOnly /><button>+</button></div>
+                    <span style={{ fontSize: 12, fontWeight: 600 }}><span style={{ color: 'var(--red)' }}>폐기 1개</span><span style={{ color: 'var(--green)' }}> · 복귀 1개</span></span>
+                  </div>
                 </div>
-                <button className="btn btn-primary" style={{ background: 'var(--green)', fontSize: 13, padding: '9px 16px', alignSelf: 'flex-start' }}>
-                  ✓ 체크한 집기 회수 (1종 · +2개)
-                </button>
                 <ul style={{ marginTop: 4 }}>
-                  <li>상세 창에서 <b>집기를 하나씩 클릭해 체크</b>하며 실물을 확인하고 회수하면 재고로 <b style={{ color: 'var(--green)' }}>복귀(+)</b>합니다.</li>
-                  <li>전부 돌아오면 자동으로 <b>회수완료</b> 처리 → 팝업 목록 <b>완료 탭</b>으로 이동해요.</li>
+                  <li>팝업 목록/달력에서 <b>회수 진행</b>을 누르면 상세 창의 <b>회수 체크리스트</b>가 열려요.</li>
+                  <li>집기를 <b>하나씩 클릭해 체크</b>하며 실물을 확인해요. 실수 방지를 위해 원클릭 일괄처리 대신 확인 방식을 씁니다.</li>
+                  <li>각 집기마다 <b style={{ color: 'var(--green)' }}>재고 복귀</b> / <b style={{ color: 'var(--red)' }}>폐기</b>를 고를 수 있어요. 정상 집기는 복귀(+), 파손 집기는 폐기(보유수량에서 제외).</li>
+                  <li><b>부분 폐기</b>도 가능해요 — 2개 중 1개만 폐기하면 <b>1개는 폐기, 나머지 1개는 자동으로 재고 복귀</b>됩니다.</li>
+                  <li>모든 집기가 처리되면 팝업이 자동으로 <b>회수완료</b>되고 목록 <b>완료 탭</b>으로 이동해요.</li>
                 </ul>
               </div>
+              <div className="help-tip">💡 집기가 1~2개뿐이라 확인이 간단하면 상세 창의 <b>전체 회수</b> 버튼으로 한 번에 복귀시킬 수 있어요.</div>
             </div>
 
             <div className="help-section">
-              <h3>5️⃣ 상태 & 출고 현황</h3>
+              <h3><span className="help-num">5</span>상태 흐름 &amp; 출고 현황</h3>
               <div className="help-demo" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', fontSize: 12.5, color: 'var(--ink-muted-48)' }}>
                   <span className="badge badge-gray">예정</span>
@@ -621,15 +660,20 @@ export default function Home() {
                   <span className="badge badge-amber">종료</span>
                   <span>→</span>
                   <span className="badge badge-blue">회수완료</span>
-                  <span style={{ marginLeft: 4 }}>종료일이 지나면 자동으로 &quot;종료&quot;로 바뀝니다</span>
                 </div>
+                <div style={{ fontSize: 12.5, color: 'var(--ink-muted-80)' }}>종료일이 지나면 자동으로 <b>&quot;종료&quot;</b>로 바뀌고 회수 버튼이 강조돼요.</div>
                 <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--amber)', background: 'var(--amber-bg)', borderRadius: 10, padding: '9px 12px' }}>
                   ⚠️ 종료된 팝업 1건에 아직 회수되지 않은 집기 2개가 있어요
                 </div>
                 <ul style={{ marginTop: 0 }}>
-                  <li>출고 현황에는 <b>진행중인 팝업만</b> 표시되고, 회수를 잊으면 위 같은 경고 배너가 떠요.</li>
+                  <li><b>출고 현황</b>에는 진행중인 팝업만 표시돼요(종료·회수완료는 숨김).</li>
+                  <li>종료됐는데 회수를 안 한 집기가 있으면 위 같은 <b>경고 배너</b>가 떠서 놓치지 않게 알려줘요.</li>
                 </ul>
               </div>
+            </div>
+
+            <div className="help-tip" style={{ background: 'var(--pearl)', color: 'var(--ink-muted-80)' }}>
+              ❓ <b>실물과 장부가 안 맞을 때</b>: 집기 카드에서 <b>보유수량</b>을 직접 고치면 돼요. 출고중 수량은 팝업 회수/반납으로만 바뀌니, 재고가 이상하면 먼저 진행중 팝업의 출고 내역부터 확인하세요.
             </div>
 
             <div className="modal-actions">
