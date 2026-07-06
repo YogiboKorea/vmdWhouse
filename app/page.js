@@ -129,7 +129,7 @@ export default function Home() {
   }
 
   /* ---------- 집기리스트 필터 + 정렬 + 페이지네이션 (페이지당 20개) ---------- */
-  const PAGE_SIZE = 20;
+  const PAGE_SIZE = 18;
   const [itemPage, setItemPage] = useState(1);
   const [zeroOnly, setZeroOnly] = useState(false); // 재고 미입력(0)만
   const [sortKey, setSortKey] = useState('recent'); // recent | name | avail | out
